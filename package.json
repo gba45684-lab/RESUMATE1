@@ -1,0 +1,24 @@
+{
+  "name": "resumate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ResuMate resume builder - production web app packaged with Capacitor",
+  "scripts": {
+    "build": "npm run prepare:web",
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "cap:sync": "npx cap sync",
+    "android": "npx cap open android",
+    "check": "node scripts/check-project.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

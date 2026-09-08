@@ -1,0 +1,82 @@
+name: ResuMate Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Restructure uploaded ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f ResuMate.zip ]; then
+            rm -rf .resumate-extracted
+            mkdir -p .resumate-extracted
+            unzip -q ResuMate.zip -d .resumate-extracted
+            if [ -f .resumate-extracted/www/app-source.html ]; then
+              mkdir -p www
+              cp .resumate-extracted/www/app-source.html www/index.html
+            elif [ -f .resumate-extracted/app-source.html ]; then
+              mkdir -p www
+              cp .resumate-extracted/app-source.html www/index.html
+            elif [ -f .resumate-extracted/www/index.html ]; then
+              mkdir -p www
+              cp .resumate-extracted/www/index.html www/index.html
+            else
+              echo 'No supported ResuMate HTML entry point found in ZIP.'
+              find .resumate-extracted -maxdepth 4 -type f -print
+              exit 1
+            fi
+            rm -rf .resumate-extracted ResuMate.zip
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A
+            git diff --cached --quiet || git commit -m 'chore: restructure ResuMate source into production layout'
+            git push
+          fi
+
+      - name: Validate web app
+        run: npm run check
+
+      - name: Install Android platform
+        run: npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResuMate-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
