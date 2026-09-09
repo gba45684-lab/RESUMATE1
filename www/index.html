@@ -22421,11 +22421,145 @@ var __async = (__this, __arguments, generator) => {
     </style>
 </head>
 <body>
+    <script>
+    /* ─── ResuMate OTA bootstrap ─────────────────────────────────────────
+       Runs before anything else. Purpose: let a single OTA-enabled APK
+       install receive future www/index.html changes without a new APK.
+
+       - Never blocks first paint on the network: if nothing is cached,
+         this file (the one actually inside the APK) just renders normally.
+       - Applies a previously-downloaded update by swapping the document
+         via document.write() *before* the rest of the page parses.
+       - Downloads new updates in the background and applies them on the
+         *next* launch/reload only -- never mid-session, so it can't yank
+         the resume editor out from under someone mid-edit.
+       - Tracks whether the build it swapped to actually finished booting;
+         if not, automatically rolls back to the last confirmed-good build.
+       - Every step is wrapped so a network failure, a bad manifest, or a
+         storage error simply no-ops -- the app must always still load.
+    ---------------------------------------------------------------------- */
+    window.__RESUMATE_BUILD__ = 0; /* stamped by the OTA publish workflow on the `ota` branch only; main stays 0 */
+    (function () {
+        'use strict';
+        var OTA_VERSION_URL = 'https://raw.githubusercontent.com/gba45684-lab/RESUMATE1/ota/version.json';
+        var OTA_HTML_URL = 'https://raw.githubusercontent.com/gba45684-lab/RESUMATE1/ota/index.html';
+        var K_ACTIVE = 'resumate.ota.active.v1';
+        var K_PREVIOUS = 'resumate.ota.previous.v1';
+        var K_BOOT_ATTEMPT = 'resumate.ota.bootAttempt.v1';
+        var K_BOOT_CONFIRMED = 'resumate.ota.bootConfirmed.v1';
+        var K_BAD_BUILDS = 'resumate.ota.badBuilds.v1';
+        var CURRENT_BUILD = window.__RESUMATE_BUILD__ || 0;
+        /* window (unlike the Document) survives a document.write() swap, so this flag correctly
+           tells a nested/cascaded run (this script re-executing because we just swapped the
+           document within THIS same launch) apart from a genuinely fresh app launch. Crash
+           detection below must only run once per real launch -- a nested run's bootAttempt was
+           just written a moment ago by the swap decision itself, not left over from some earlier
+           session, so comparing it against a stale bootConfirmed would misfire. */
+        var IS_FRESH_LAUNCH = !window.__resumateOtaBootChecked;
+        window.__resumateOtaBootChecked = true;
+
+        function readJSON(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+        function writeJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+        function readNum(key) { try { var v = localStorage.getItem(key); return v ? parseInt(v, 10) : null; } catch (e) { return null; } }
+        function writeNum(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) {} }
+        function badBuilds() { try { return JSON.parse(localStorage.getItem(K_BAD_BUILDS) || '[]'); } catch (e) { return []; } }
+        function markBad(build) { try { var b = badBuilds(); if (b.indexOf(build) === -1) { b.push(build); localStorage.setItem(K_BAD_BUILDS, JSON.stringify(b.slice(-10))); } } catch (e) {} }
+
+        function swapTo(bundle) {
+            /* bundle = { build, html }. Replaces the whole document.
+               IMPORTANT: this must NOT run synchronously while this script
+               is still being parsed as part of the current document -- at
+               that point document.open()/write() do an in-place *insert*
+               into the ongoing parse (per the HTML spec's "active parser"
+               rule), not a full replace, which would duplicate the page.
+               Deferring one tick lets the current parse finish first, so
+               document.open() performs a genuine full-document reset. */
+            setTimeout(function () {
+                try {
+                    document.open();
+                    document.write(bundle.html);
+                    document.close();
+                } catch (e) { /* if this fails, whatever already rendered just stays as-is */ }
+            }, 0);
+        }
+
+        try {
+            var lastAttempt = readNum(K_BOOT_ATTEMPT);
+            var lastConfirmed = readNum(K_BOOT_CONFIRMED);
+
+            /* NOTE: a full app restart always re-parses the physical index.html bundled in the
+               APK, so CURRENT_BUILD here is simply whatever build number is embedded in that
+               file -- it is NOT "whatever we last swapped to in memory" (that in-memory swap
+               doesn't persist across a real restart). So rollback detection must not compare
+               against CURRENT_BUILD; it must track which OTA build we last *attempted* and
+               whether it ever confirmed, independently of what's physically on disk. */
+            if (IS_FRESH_LAUNCH) {
+                var suspectBuild = (lastAttempt !== null && lastAttempt !== lastConfirmed) ? lastAttempt : null;
+                if (suspectBuild !== null) markBad(suspectBuild);
+
+                var candidate = (function () {
+                    var a = readJSON(K_ACTIVE);
+                    if (a && a.build > CURRENT_BUILD && badBuilds().indexOf(a.build) === -1) return a;
+                    var p = readJSON(K_PREVIOUS);
+                    if (p && p.build > CURRENT_BUILD && badBuilds().indexOf(p.build) === -1) return p;
+                    return null; /* nothing safe newer than the physical file -- just run that */
+                })();
+
+                if (candidate) {
+                    writeNum(K_BOOT_ATTEMPT, candidate.build);
+                    swapTo(candidate);
+                    return; /* document has been replaced; stop running this copy */
+                }
+            }
+
+            /* Nothing to swap -- we're committing to running CURRENT_BUILD (either the file
+               actually on disk, or the build we were just swapped to earlier in this same
+               launch). Mark the attempt, and confirm success shortly after the page finishes
+               loading. */
+            writeNum(K_BOOT_ATTEMPT, CURRENT_BUILD);
+            window.addEventListener('load', function () {
+                setTimeout(function () { writeNum(K_BOOT_CONFIRMED, CURRENT_BUILD); }, 1500);
+            });
+
+            /* Step 4: in the background, check for an update. Never applied this session --
+               only stashed for next launch, so it can't interrupt an in-progress edit. */
+            setTimeout(function () {
+                fetch(OTA_VERSION_URL + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) {
+                    if (!r.ok) throw new Error('manifest HTTP ' + r.status);
+                    return r.json();
+                }).then(function (manifest) {
+                    if (!manifest || typeof manifest.build !== 'number') return;
+                    if (manifest.build <= CURRENT_BUILD) return;
+                    if (badBuilds().indexOf(manifest.build) !== -1) return;
+                    var cachedActive = readJSON(K_ACTIVE);
+                    if (cachedActive && cachedActive.build >= manifest.build) return; /* already downloaded */
+                    return fetch(OTA_HTML_URL + '?v=' + Date.now(), { cache: 'no-store' }).then(function (hr) {
+                        if (!hr.ok) throw new Error('bundle HTTP ' + hr.status);
+                        return hr.text();
+                    }).then(function (html) {
+                        if (!html || html.length < 10000 || html.indexOf('ResuMate') === -1) throw new Error('bundle failed integrity check');
+                        /* If we're currently running a previously-applied OTA build, keep it as the
+                           rollback target -- it's proven to have booted successfully. (If we're still
+                           on the originally-shipped build, there's nothing to rotate in yet; rollback
+                           below that point isn't possible without a new APK.) */
+                        if (cachedActive && cachedActive.build === CURRENT_BUILD) writeJSON(K_PREVIOUS, cachedActive);
+                        writeJSON(K_ACTIVE, { build: manifest.build, html: html });
+                        var notify = function () {
+                            if (typeof window.toast === 'function') window.toast('Update ready — will apply next launch');
+                        };
+                        if (typeof window.toast === 'function') notify(); else window.addEventListener('load', function () { setTimeout(notify, 2000); });
+                    });
+                }).catch(function () { /* offline, manifest missing, CORS, etc. -- silently do nothing */ });
+            }, 4000);
+        } catch (e) { /* any unexpected failure here must never block the app from rendering */ }
+    })();
+    </script>
     <div class="app" id="app">
         <div class="top-space"></div>
         <div class="status-bar"><span id="statusBarTime">9:41</span><span id="statusBarBattery">100%</span></div>
         <div class="header">
             <div class="brand">Resu<b>Mate</b></div>
+
             <div class="header-actions">
                 <span class="header-tag" id="headerTag">Home</span>
                 <button class="back-btn" id="backBtn" onclick="window.smartBack()"><i class="fa-solid fa-arrow-left"></i> Back</button>
