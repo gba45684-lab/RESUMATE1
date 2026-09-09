@@ -1,0 +1,76 @@
+name: Publish OTA update
+
+# Publishes www/index.html + a version.json manifest to the `ota` branch,
+# which is what the app fetches at runtime (see the bootstrap script at
+# the top of <body> in www/index.html) to update itself without a new
+# APK install. This workflow never commits back to `main`.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'www/index.html'
+      - 'scripts/publish-ota.mjs'
+  workflow_dispatch: {}
+
+concurrency:
+  group: publish-ota
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Determine next build number
+        id: build
+        run: |
+          set -e
+          PREV=0
+          if git ls-remote --exit-code --heads origin ota >/dev/null 2>&1; then
+            git fetch origin ota --depth 1
+            PREV=$(git show origin/ota:version.json 2>/dev/null | node -e \
+              "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).build||0)}catch(e){console.log(0)}})")
+          fi
+          NEXT=$((PREV + 1))
+          echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Previous published build: $PREV -> publishing build: $NEXT"
+
+      - name: Validate www/index.html before publishing
+        run: node scripts/check-project.mjs
+
+      - name: Prepare OTA payload
+        run: node scripts/publish-ota.mjs "${{ steps.build.outputs.next }}" ota-out
+
+      - name: Publish to ota branch
+        run: |
+          set -e
+          cd ota-out
+          git init -q
+          git config user.name "resumate-ota-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html version.json
+          git commit -q -m "OTA build ${{ steps.build.outputs.next }} (from ${{ github.sha }})"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:ota
+
+      - name: Summary
+        run: |
+          echo "### OTA build ${{ steps.build.outputs.next }} published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Manifest: https://raw.githubusercontent.com/${{ github.repository }}/ota/version.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bundle: https://raw.githubusercontent.com/${{ github.repository }}/ota/index.html" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Installed OTA-enabled apps will pick this up automatically on their next launch." >> "$GITHUB_STEP_SUMMARY"

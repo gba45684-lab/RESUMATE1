@@ -5,8 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -15,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -23,9 +27,9 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Restructure uploaded ZIP
+      - name: Restructure uploaded ZIP (build workspace only -- never committed back to the repo)
         shell: bash
         run: |
           set -euo pipefail
@@ -48,11 +52,7 @@ jobs:
               exit 1
             fi
             rm -rf .resumate-extracted ResuMate.zip
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -A
-            git diff --cached --quiet || git commit -m 'chore: restructure ResuMate source into production layout'
-            git push
+            echo "Using ResuMate.zip content for this build only -- not committing it to the repo."
           fi
 
       - name: Validate web app
