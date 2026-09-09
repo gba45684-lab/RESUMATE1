@@ -22464,6 +22464,13 @@ var __async = (__this, __arguments, generator) => {
         function writeNum(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) {} }
         function badBuilds() { try { return JSON.parse(localStorage.getItem(K_BAD_BUILDS) || '[]'); } catch (e) { return []; } }
         function markBad(build) { try { var b = badBuilds(); if (b.indexOf(build) === -1) { b.push(build); localStorage.setItem(K_BAD_BUILDS, JSON.stringify(b.slice(-10))); } } catch (e) {} }
+        function sha256Hex(text) {
+            if (!(window.crypto && window.crypto.subtle)) return Promise.resolve(null); /* no secure context -- skip, don't block */
+            var data = new TextEncoder().encode(text);
+            return window.crypto.subtle.digest('SHA-256', data).then(function (buf) {
+                return Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+            });
+        }
 
         function swapTo(bundle) {
             /* bundle = { build, html }. Replaces the whole document.
@@ -22538,6 +22545,11 @@ var __async = (__this, __arguments, generator) => {
                         return hr.text();
                     }).then(function (html) {
                         if (!html || html.length < 10000 || html.indexOf('ResuMate') === -1) throw new Error('bundle failed integrity check');
+                        return sha256Hex(html).then(function (hash) {
+                            if (manifest.sha256 && hash && hash !== manifest.sha256) throw new Error('bundle checksum mismatch -- refusing to install');
+                            return html;
+                        });
+                    }).then(function (html) {
                         /* If we're currently running a previously-applied OTA build, keep it as the
                            rollback target -- it's proven to have booted successfully. (If we're still
                            on the originally-shipped build, there's nothing to rotate in yet; rollback
