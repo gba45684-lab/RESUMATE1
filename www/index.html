@@ -22745,6 +22745,7 @@ var __async = (__this, __arguments, generator) => {
             // ─── STATE ────────────────────────────────────────────────────
             const KEY = 'resumate.v12.final';
             const D = {
+                schemaVersion: 1,
                 onboarded: false,
                 aiMode: 'auto',
                 aiProvider: 'groq',
@@ -22810,10 +22811,23 @@ var __async = (__this, __arguments, generator) => {
 
             function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
+            // Each entry runs ONLY when upgrading from that exact version, in order, so a resume
+            // saved months ago on an older build still lands on the current schema safely.
+            const MIGRATIONS = {
+                // Example shape for the next real migration:
+                // 1: function (m) { /* mutate m in place for the 1 -> 2 change */ return m; }
+            };
+            function migrate(m) {
+                let from = m.schemaVersion || 1;
+                while (MIGRATIONS[from]) { m = MIGRATIONS[from](m); from = m.schemaVersion = from + 1; }
+                m.schemaVersion = D.schemaVersion;
+                return m;
+            }
+
             function load() {
                 try {
                     const s = JSON.parse(localStorage.getItem(KEY) || '{}');
-                    const m = Object.assign(clone(D), s);
+                    const m = migrate(Object.assign(clone(D), s));
                     m.versions = m.versions || m.resumes.map(r => ({ ...r }));
                     return m;
                 } catch (e) {
@@ -24863,7 +24877,9 @@ var __async = (__this, __arguments, generator) => {
                 const r = new FileReader();
                 r.onload = () => {
                     try {
-                        state = JSON.parse(r.result);
+                        const parsed = JSON.parse(r.result);
+                        state = migrate(Object.assign(clone(D), parsed));
+                        state.versions = state.versions || state.resumes.map(x => ({ ...x }));
                         state.billing = state.billing || clone(D.billing);
                         state.billing.enforcePremium = false;
                         state.navHistory = ['home'];
