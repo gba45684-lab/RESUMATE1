@@ -8,7 +8,9 @@
     "prepare:web": "node scripts/prepare-web.mjs",
     "cap:sync": "npx cap sync",
     "android": "npx cap open android",
-    "check": "node scripts/check-project.mjs"
+    "check": "node scripts/check-project.mjs",
+    "test": "node scripts/test.mjs",
+    "test:syntax": "node scripts/test-syntax.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3"
@@ -16,7 +18,8 @@
   "devDependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "playwright-core": "^1.63.0"
   },
   "engines": {
     "node": ">=20"
