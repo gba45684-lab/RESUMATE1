@@ -4,8 +4,7 @@ node_modules/
 .env
 .env.*
 !.env.example
-android/.gradle/
-android/build/
-android/app/build/
-android/.idea/
+# The Android platform is generated fresh by `npx cap add android` in CI
+# (see .github/workflows/build-apk.yml) -- it's never checked in.
+android/
 www/.DS_Store
