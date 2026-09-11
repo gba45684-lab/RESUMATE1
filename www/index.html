@@ -22419,30 +22419,38 @@ var __async = (__this, __arguments, generator) => {
         .back-btn { flex:none; min-height:28px; white-space:nowrap; }
         .header-tag { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-        /* OTA badge + dark header bar */
-        .header { background:#161A20 !important; position:relative; z-index:6; }
-        .header .brand { color:#EEEAE0; }
-        .header .brand b { color:#D2A95E; }
+        /* header now uses the default theme-aware background (var(--paper)) */
         .header-right { display:flex; align-items:center; gap:8px; }
         .header-tag {
             position:absolute; top:100%; right:18px; margin-top:10px; z-index:4;
         }
-        .ota-badge {
-            display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.08);
-            border:1px solid rgba(255,255,255,.14); border-radius:20px; padding:5px 12px 5px 10px;
-            font:600 11px 'IBM Plex Sans', sans-serif; color:#EEEAE0; cursor:pointer;
-            -webkit-tap-highlight-color:transparent; touch-action:manipulation; white-space:nowrap;
+        .ota-badge { display:none; } /* header badge removed; control lives in Settings now */
+
+        /* Animated ResuMate wordmark */
+        .brand {
+            position: relative;
+            animation: brandRise .6s cubic-bezier(.2,.8,.2,1) both;
         }
-        .ota-badge .ota-label { color:rgba(238,234,224,.6); font-size:10px; letter-spacing:.03em; }
-        .ota-badge .ota-check {
-            width:14px; height:14px; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;
-            background:#fff; color:#161A20; font-size:9px; flex:none;
+        .brand b {
+            background: linear-gradient(90deg, var(--brass-deep), var(--brass), var(--brass-deep));
+            background-size: 220% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: brandShimmer 5s ease-in-out infinite;
         }
-        .ota-badge.off .ota-check { background:transparent; border:1px solid rgba(238,234,224,.4); color:transparent; }
-        .ota-badge .ota-state { color:rgba(238,234,224,.55); font-size:10px; }
-        .ota-badge .ota-collapse { color:rgba(238,234,224,.4); font-weight:400; margin-left:1px; }
+        @keyframes brandRise {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes brandShimmer {
+            0%   { background-position: 0% center; }
+            50%  { background-position: 100% center; }
+            100% { background-position: 0% center; }
+        }
     </style>
 </head>
+
 <body>
     <script>
     /* ─── ResuMate OTA bootstrap ─────────────────────────────────────────
@@ -22604,13 +22612,6 @@ var __async = (__this, __arguments, generator) => {
             <div class="brand">Resu<b>Mate</b></div>
 
             <div class="header-right">
-                <div class="ota-badge" id="otaBadge" onclick="window.ResuMateOTA && window.ResuMateOTA.toggleEnabled()" role="button" aria-label="OTA updates">
-                    <span class="ota-label">OTA</span>
-                    <span class="ota-check" id="otaCheck"><i class="fa-solid fa-check"></i></span>
-                    <span id="otaOnLabel">ON</span>
-                    <span class="ota-state" id="otaStateLabel">Always on</span>
-                    <span class="ota-collapse">—</span>
-                </div>
                 <div class="header-actions">
                     <span class="header-tag" id="headerTag">Home</span>
                     <button class="back-btn" id="backBtn" onclick="window.smartBack()"><i class="fa-solid fa-arrow-left"></i> Back</button>
@@ -22645,8 +22646,8 @@ var __async = (__this, __arguments, generator) => {
                     <div id="homeRecent"></div>
                     <div class="section-label">Application Tracker</div>
                     <div id="homeTracker" class="job-tracker"></div>
-                    <div class="card-glass" onclick="window.openPremium()" style="margin-top:10px;border-left:4px solid var(--brass);background:var(--card);">
-                        <div style="display:flex;gap:12px;align-items:center"><div class="seal" style="width:32px;height:32px;font-size:14px;flex:none">M</div><div><b>All Pro features unlocked</b><br><small>50 templates · AI · unlimited versions</small></div></div>
+                    <div class="card-glass" onclick="window.go('templates')" style="margin-top:10px;border-left:4px solid var(--brass);background:var(--card);">
+                        <div style="display:flex;gap:12px;align-items:center"><div class="seal" style="width:32px;height:32px;font-size:14px;flex:none">M</div><div><b>Every feature included</b><br><small>50 templates · AI · unlimited versions</small></div></div>
                     </div>
                 </div>
             </section>
@@ -22675,7 +22676,7 @@ var __async = (__this, __arguments, generator) => {
                     <div class="section-label">File actions</div>
                     <div class="grid-2">
                         <div class="card-glass" onclick="window.openPreviewFromAnywhere()"><div class="icon-wrap"><i class="fa-solid fa-eye"></i></div><strong>View Preview</strong><small>Full‑screen A4</small></div>
-                        <div class="card-glass" onclick="window.openPDFExport()"><div class="icon-wrap"><i class="fa-solid fa-file-pdf"></i></div><strong>Premium PDF</strong><small>Watermark‑free</small></div>
+                        <div class="card-glass" onclick="window.openPDFExport()"><div class="icon-wrap"><i class="fa-solid fa-file-pdf"></i></div><strong>PDF Export</strong><small>Print‑ready, no watermark</small></div>
                         <div class="card-glass" onclick="window.exportDOCX()"><div class="icon-wrap"><i class="fa-solid fa-file-word"></i></div><strong>DOCX Export</strong><small>Word document</small></div>
                         <div class="card-glass" onclick="window.duplicateResume()"><div class="icon-wrap"><i class="fa-solid fa-clone"></i></div><strong>Duplicate</strong><small>Copy current draft</small></div>
                         <div class="card-glass" onclick="window.exportJSON()"><div class="icon-wrap"><i class="fa-solid fa-download"></i></div><strong>Backup JSON</strong><small>Export data</small></div>
@@ -22688,8 +22689,6 @@ var __async = (__this, __arguments, generator) => {
                 <div style="padding:10px 18px 0">
                     <div style="display:flex;gap:6px;overflow:auto;padding-bottom:6px">
                         <button class="btn-outline" style="font-size:9px;padding:5px 12px;border-radius:20px;background:var(--ink);color:var(--paper);border-color:var(--ink)" onclick="window.filterTemplates('all',this)">All 50</button>
-                        <button class="btn-outline" style="font-size:9px;padding:5px 12px;border-radius:20px" onclick="window.filterTemplates('free',this)">Free</button>
-                        <button class="btn-outline" style="font-size:9px;padding:5px 12px;border-radius:20px" onclick="window.filterTemplates('premium',this)">Premium</button>
                         <button class="btn-outline" style="font-size:9px;padding:5px 12px;border-radius:20px" onclick="window.filterTemplates('ats',this)">ATS‑safe</button>
                     </div>
                 </div>
@@ -22750,7 +22749,6 @@ var __async = (__this, __arguments, generator) => {
                 <button class="btn-outline" style="margin-top:8px" onclick="window.skipOnboarding()">Skip to sample</button>
             </div>
         </div>
-        <div id="premium" class="overlay"><div class="overlay-head"><span class="tag">Pro · Unlocked</span><button class="overlay-close" onclick="window.closeOverlay('premium')">&times;</button></div><div class="overlay-body"><div class="seal" style="margin:auto;width:44px;height:44px;font-size:20px">✓</div><h2 class="serif" style="text-align:center;font-size:20px">All Pro features are free</h2><p style="text-align:center;color:var(--soft);font-size:11px">Premium billing is disabled for this preview.</p><div class="plan-card best"><b>FREE ACCESS · CURRENT PREVIEW</b><br><small>50 templates · AI tools · unlimited versions · no watermark</small></div><p style="font-size:11px;line-height:1.8">✓ 50 unique templates<br>✓ Unlimited versions<br>✓ AI review &amp; tailoring<br>✓ Font selection<br>✓ Text colors<br>✓ No watermark</p><button class="btn-pay" onclick="window.closeOverlay('premium');window.toast('All premium features are unlocked')">Continue</button></div></div>
         <div id="ai" class="overlay"><div class="overlay-head"><span class="tag">AI Assistant</span><button class="overlay-close" onclick="window.closeOverlay('ai')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Improve your resume</h2><p style="font-size:11px;color:var(--soft)">AI calls use your free Groq/OpenRouter key from Settings.</p><div class="field"><label>Text to improve</label><textarea id="aiInput" placeholder="Paste a summary or bullet…"></textarea></div><div class="grid-2"><button class="btn-outline" onclick="window.aiRewrite('bullet')">Rewrite bullet</button><button class="btn-outline" onclick="window.aiRewrite('summary')">Improve summary</button><button class="btn-outline" onclick="window.aiRewrite('keywords')">Suggest keywords</button><button class="btn-outline" onclick="window.aiRewrite('quantify')">Metrics ideas</button></div><div id="aiResult" class="suggest" style="display:none"></div>
             <div style="margin-top:10px"><button class="btn-outline" onclick="window.grammarCheck()">Grammar & Spell Check</button></div>
             <div id="grammarResult" class="suggest" style="display:none"></div>
@@ -22779,7 +22777,7 @@ var __async = (__this, __arguments, generator) => {
         <div id="interview" class="overlay"><div class="overlay-head"><span class="tag">Interview Coach</span><button class="overlay-close" onclick="window.closeOverlay('interview')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Practice interview</h2><div class="field"><label>Target role</label><input id="interviewRole"></div><div class="field"><label>Type</label><select id="interviewType"><option>Mixed</option><option>HR / Behavioral</option><option>Technical</option><option>Managerial</option></select></div><button class="btn-pay" onclick="window.runInterview()">Generate questions</button><div id="interviewResult"></div></div></div>
         <div id="portfolio" class="overlay"><div class="overlay-head"><span class="tag">Public profile</span><button class="overlay-close" onclick="window.closeOverlay('portfolio')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Portfolio preview</h2><div id="portfolioResult"></div><button class="btn-pay" onclick="window.sharePortfolio()">Copy public profile</button></div></div>
         <div id="changes" class="overlay"><div class="overlay-head"><span class="tag">AI changes</span><button class="overlay-close" onclick="window.closeOverlay('changes')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Review before applying</h2><div id="changesResult"></div></div></div>
-        <div id="pdfExport" class="overlay"><div class="overlay-head"><span class="tag">Pro · PDF Export</span><button class="overlay-close" onclick="window.closeOverlay('pdfExport')">&times;</button></div><div class="overlay-body"><div class="seal" style="margin:auto;width:44px;height:44px;font-size:18px">PDF</div><h2 class="serif" style="text-align:center;font-size:18px">Premium PDF Export</h2><p style="text-align:center;color:var(--soft);font-size:11px;line-height:1.5">Clean A4 output with your current template, font, and colors.</p><div class="plan-card best"><b>PRO EXPORT · UNLOCKED</b><br><small>Watermark‑free · print‑ready A4</small></div><div class="card-glass" style="min-height:auto;margin-top:8px"><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfHighQuality" type="checkbox" checked> High‑quality output</label><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfATS" type="checkbox" checked> ATS‑optimized text</label><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfNoWatermark" type="checkbox" checked disabled> No watermark <span class="pro-badge">PRO</span></label></div><button class="btn-pay" onclick="window.performPremiumPDFExport()">Export Premium PDF</button><button class="btn-outline" style="width:100%;margin-top:6px" onclick="window.closeOverlay('pdfExport');window.openPreviewFromAnywhere()">View Preview First</button></div></div>
+        <div id="pdfExport" class="overlay"><div class="overlay-head"><span class="tag">PDF Export</span><button class="overlay-close" onclick="window.closeOverlay('pdfExport')">&times;</button></div><div class="overlay-body"><div class="seal" style="margin:auto;width:44px;height:44px;font-size:18px">PDF</div><h2 class="serif" style="text-align:center;font-size:18px">PDF Export</h2><p style="text-align:center;color:var(--soft);font-size:11px;line-height:1.5">Clean A4 output with your current template, font, and colors.</p><div class="plan-card best"><b>READY TO EXPORT</b><br><small>Watermark‑free · print‑ready A4</small></div><div class="card-glass" style="min-height:auto;margin-top:8px"><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfHighQuality" type="checkbox" checked> High‑quality output</label><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfATS" type="checkbox" checked> ATS‑optimized text</label><label style="display:flex;gap:8px;align-items:center;font-size:10px;margin:4px 0"><input id="pdfNoWatermark" type="checkbox" checked disabled> No watermark</label></div><button class="btn-pay" onclick="window.performPremiumPDFExport()">Export PDF</button><button class="btn-outline" style="width:100%;margin-top:6px" onclick="window.closeOverlay('pdfExport');window.openPreviewFromAnywhere()">View Preview First</button></div></div>
         <div id="coverLetter" class="overlay"><div class="overlay-head"><span class="tag">Cover Letter</span><button class="overlay-close" onclick="window.closeOverlay('coverLetter')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">AI‑Generated Cover Letter</h2><div class="field"><label>Job Title</label><input id="coverJobTitle" placeholder="e.g. Software Engineer"></div><div class="field"><label>Company Name</label><input id="coverCompany" placeholder="e.g. Google"></div><button class="btn-pay" onclick="window.generateCoverLetter()">Generate Cover Letter</button><div id="coverResult" class="suggest" style="margin-top:8px;white-space:pre-wrap;font-size:10px;line-height:1.5"></div></div></div>
         <div id="analytics" class="overlay"><div class="overlay-head"><span class="tag">Analytics</span><button class="overlay-close" onclick="window.closeOverlay('analytics')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Resume Analytics</h2><div id="analyticsResult"></div></div></div>
         <div id="linkedin" class="overlay"><div class="overlay-head"><span class="tag">LinkedIn Import</span><button class="overlay-close" onclick="window.closeOverlay('linkedin')">&times;</button></div><div class="overlay-body"><h2 class="serif" style="font-size:18px">Import from LinkedIn</h2><p style="font-size:11px;color:var(--soft)">Paste your LinkedIn profile URL (public).</p><div class="field"><label>LinkedIn URL</label><input id="linkedinUrl" placeholder="https://linkedin.com/in/yourprofile"></div><button class="btn-pay" onclick="window.importLinkedIn()">Import Profile</button><div id="linkedinResult"></div></div></div>
@@ -22839,7 +22837,6 @@ var __async = (__this, __arguments, generator) => {
                 font: 'Inter',
                 textColor: '#181A1F',
                 headingColor: '#181A1F',
-                billing: { enforcePremium: false, plans: { monthly: 149, yearly: 899, lifetime: 1999 } },
                 resumes: [
                     { id: 1, name: 'Aarav Mehta — Wealth Management', template: 'Apex', score: 86, updated: 'today' },
                     { id: 2, name: 'Aarav Mehta — Client Advisory', template: 'Vanguard', score: 79,
@@ -22856,8 +22853,6 @@ var __async = (__this, __arguments, generator) => {
                 pendingTailor = null,
                 railOpen = true,
                 activeFlyoutId = 'colors';
-            state.billing = state.billing || clone(D.billing);
-            state.billing.enforcePremium = false;
             state.navHistory = state.navHistory || ['home'];
             state.importedText = state.importedText || '';
 
@@ -22927,12 +22922,18 @@ var __async = (__this, __arguments, generator) => {
             function otaEnabled() { try { return localStorage.getItem(OTA_ENABLED_KEY) !== '0'; } catch (e) { return true; } }
             function otaUiState() { try { return localStorage.getItem(OTA_UI_STATE_KEY) || 'idle'; } catch (e) { return 'idle'; } }
             function renderOtaBadge() {
-                const badge = document.getElementById('otaBadge'); if (!badge) return;
                 const enabled = otaEnabled();
-                badge.classList.toggle('off', !enabled);
-                const onLabel = document.getElementById('otaOnLabel'); if (onLabel) onLabel.textContent = enabled ? 'ON' : 'OFF';
-                const stateLabel = document.getElementById('otaStateLabel');
-                if (stateLabel) stateLabel.textContent = enabled ? (OTA_STATE_LABELS[otaUiState()] || 'Always on') : 'Disabled';
+                const badge = document.getElementById('otaBadge');
+                if (badge) {
+                    badge.classList.toggle('off', !enabled);
+                    const onLabel = document.getElementById('otaOnLabel'); if (onLabel) onLabel.textContent = enabled ? 'ON' : 'OFF';
+                    const stateLabel = document.getElementById('otaStateLabel');
+                    if (stateLabel) stateLabel.textContent = enabled ? (OTA_STATE_LABELS[otaUiState()] || 'Always on') : 'Disabled';
+                }
+                const sToggle = document.getElementById('otaSettingsToggle');
+                if (sToggle) sToggle.classList.toggle('on', enabled);
+                const sStatus = document.getElementById('otaSettingsStatus');
+                if (sStatus) sStatus.textContent = enabled ? (OTA_STATE_LABELS[otaUiState()] || 'Always on') : 'Disabled';
             }
             function toggleOtaEnabled() {
                 const next = !otaEnabled();
@@ -23467,7 +23468,6 @@ var __async = (__this, __arguments, generator) => {
                     font,
                     accent,
                     atsSafe: arche.ats,
-                    premium: i % 3 !== 0,
                     layout: arche.swatch,
                     archetype: arche.key,
                     mood,
@@ -24686,13 +24686,11 @@ var __async = (__this, __arguments, generator) => {
 
             // ─── TEMPLATES ──────────────────────────────────────────────
             function renderTemplates(filter) {
-                const arr = TEMPLATES.filter(t => filter === 'all' ? true : filter === 'ats' ? t.atsSafe : filter ===
-                    'free' ? !t.premium : t.premium);
+                const arr = TEMPLATES.filter(t => filter === 'ats' ? t.atsSafe : true);
                 document.getElementById('tmplgrid').innerHTML = arr.map((t, idx) =>
                     `<div class="tmpl-card ${state.template===t.id?'current':''}" style="--tmpl-delay:${Math.min(idx*35,400)}ms" onclick="window.selectTemplate('${t.id}')">
                         <div class="preview-box">
                             ${t.atsSafe ? '<span class="badge-corner ats">ATS</span>' : ''}
-                            ${t.premium ? '<span class="badge-corner premium">PRO</span>' : ''}
                             ${tplMiniHTML(t)}
                         </div>
                         <div class="info">
@@ -24700,7 +24698,7 @@ var __async = (__this, __arguments, generator) => {
                                 <b>${t.name}</b>
                                 ${state.template===t.id ? '<i class="fa-solid fa-circle-check current-check"></i>' : ''}
                             </div>
-                            <small>${t.atsSafe?'ATS-safe':'Visual'} · ${t.font} · <span class="pro-badge">UNLOCKED</span></small>
+                            <small>${t.atsSafe?'ATS-safe':'Visual'} · ${t.font}</small>
                         </div>
                     </div>`
                     ).join('');
@@ -24745,10 +24743,7 @@ var __async = (__this, __arguments, generator) => {
             window.openSaved = openSaved;
 
             function newResume() {
-                const billing = clone(state.billing || D.billing);
                 state = clone(D);
-                state.billing = billing;
-                state.billing.enforcePremium = false;
                 state.resumes = [];
                 state.versions = [];
                 state.navHistory = ['home'];
@@ -24804,10 +24799,7 @@ var __async = (__this, __arguments, generator) => {
 
             function resetDraft() {
                 if (confirm('Reset all draft data to the sample?')) {
-                    const billing = clone(state.billing || D.billing);
                     state = clone(D);
-                    state.billing = billing;
-                    state.billing.enforcePremium = false;
                     state.navHistory = ['home'];
                     save();
                     go('resumes');
@@ -24889,11 +24881,11 @@ var __async = (__this, __arguments, generator) => {
                     `<div class="eyebrow">Preferences</div><h2 class="serif" style="font-size:20px;margin:2px 0 10px">Settings</h2>
             <div class="card-glass" onclick="window.toggleDark()"><strong>Dark theme <span class="switch ${state.theme==='dark'?'on':''}"><i></i></span></strong><small>Change appearance.</small></div>
             <div class="card-glass"><strong>Default template</strong><select onchange="window.state.template=this.value;window.save();window.renderPreviewIfNeeded()" style="margin-top:6px;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:11px">${TEMPLATES.map(x=>x.id).map(x=>`<option ${state.template===x?'selected':''}>${x}</option>`).join('')}</select></div>
-            <div class="card-glass"><h4 style="font-size:13px;font-weight:600;margin:0 0 2px">Resume font <span class="pro-badge">PRO</span></h4><div class="font-grid-sm">${['Inter','DM Sans','Manrope','Poppins','Montserrat','Roboto','Open Sans','Lato','Source Sans 3','Nunito','Raleway'].map(f=>`<button class="font-opt ${state.font===f?'active':''}" style="font-family:${f}" onclick="window.setResumeFont('${f}')">${f}</button>`).join('')}</div></div>
-            <div class="card-glass"><h4 style="font-size:13px;font-weight:600;margin:0 0 2px">Text color / Auto Accent <span class="pro-badge">PRO</span></h4><div class="color-row-sm">${['#181A1F','#1E3A5F','#3F6B4F','#6B3F3F','#5B4B7A','#2A5298','#008080','#8B0000','#D4AF37','#2E8B57'].map(c=>`<button class="color-swatch-sm ${state.textColor===c?'active':''}" style="background:${c}" onclick="window.setResumeTextColor('${c}')"></button>`).join('')}</div></div>
-            <div class="card-glass"><strong>Premium features <span class="pro-badge">FREE</span></strong><small>All unlocked.</small></div>
+            <div class="card-glass"><h4 style="font-size:13px;font-weight:600;margin:0 0 2px">Resume font</h4><div class="font-grid-sm">${['Inter','DM Sans','Manrope','Poppins','Montserrat','Roboto','Open Sans','Lato','Source Sans 3','Nunito','Raleway'].map(f=>`<button class="font-opt ${state.font===f?'active':''}" style="font-family:${f}" onclick="window.setResumeFont('${f}')">${f}</button>`).join('')}</div></div>
+            <div class="card-glass"><h4 style="font-size:13px;font-weight:600;margin:0 0 2px">Text color / Auto Accent</h4><div class="color-row-sm">${['#181A1F','#1E3A5F','#3F6B4F','#6B3F3F','#5B4B7A','#2A5298','#008080','#8B0000','#D4AF37','#2E8B57'].map(c=>`<button class="color-swatch-sm ${state.textColor===c?'active':''}" style="background:${c}" onclick="window.setResumeTextColor('${c}')"></button>`).join('')}</div></div>
             <div class="card-glass"><strong>Watermark</strong><span class="switch ${state.watermark?'on':''}" style="float:right" onclick="window.state.watermark=!window.state.watermark;window.save();window.renderSettings();window.renderPreviewIfNeeded()"><i></i></span><small>${state.watermark?'Enabled':'Disabled'}.</small></div>
             <div class="card-glass"><strong>Local autosave</strong><small>Enabled.</small></div>
+            <div class="card-glass"><strong>App updates <span class="switch ${(function(){try{return localStorage.getItem('resumate.ota.enabled.v1')!=='0'}catch(e){return true}})()?'on':''}" id="otaSettingsToggle" style="float:right" onclick="window.ResuMateOTA&&window.ResuMateOTA.toggleEnabled()"><i></i></span></strong><small id="otaSettingsStatus">${(()=>{try{const st=window.ResuMateOTA?window.ResuMateOTA.getState():null;if(!st)return'Always on';if(!st.enabled)return'Disabled';const labels={idle:'Always on',checking:'Checking…',up_to_date:'Up to date',update_ready:'Update ready',failed:'Check failed',offline:'Offline'};return labels[st.uiState]||'Always on';}catch(e){return'Always on';}})()}</small><br><small style="color:var(--soft)">Build ${window.__RESUMATE_BUILD__||0} · new versions download in the background and apply automatically next time you open the app — no reinstall needed.</small><br><button class="btn-outline" style="margin-top:6px" onclick="window.ResuMateOTA&&window.ResuMateOTA.checkNow();window.renderSettings()">Check for update now</button></div>
             <div class="card-glass"><strong>AI mode</strong><small>Choose how AI features run. Local always works, with no key and no network.</small><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">${[['local','Local / Free'],['auto','Automatic'],['key','My API key'],['claude','Claude (optional)']].map(([v,l])=>`<button class="font-opt ${(state.aiMode||'auto')===v?'active':''}" onclick="window.setAIMode('${v}')">${l}</button>`).join('')}</div></div>
             <div class="card-glass"><strong>AI connection</strong><small id="claudeStatus">${(()=>{const s=window.aiStatus?window.aiStatus():null;return s?('Mode: '+s.mode+' · Local: '+s.local+' · Free key: '+s.free+' · Claude: '+s.claude):(state.aiKey?'Key saved · '+state.aiProvider+' · '+state.aiModel:'Not connected');})()}</small><br><button class="btn-outline" style="margin-top:5px" onclick="window.testClaude()">Test</button></div>
             <div class="card-glass" id="aiKeyCard"><strong>Free AI provider</strong><small>Bring your own API key.</small><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><button class="font-opt ${!isOR?'active':''}" onclick="window.setAIProvider('groq')">Groq</button><button class="font-opt ${isOR?'active':''}" onclick="window.setAIProvider('openrouter')">OpenRouter</button></div><div class="field" style="margin-top:6px"><label>API key</label><input type="password" placeholder="Paste your key" value="${esc(state.aiKey||'')}" oninput="window.setAIKey(this.value)"></div><div class="field"><label>Model</label><input list="aiModelList" value="${esc(state.aiModel||'')}" oninput="window.setAIModel(this.value)"><datalist id="aiModelList">${suggestions.map(m=>`<option value="${m}">`).join('')}</datalist></div><small>Free key: <a href="${isOR?'https://openrouter.ai/keys':'https://console.groq.com/keys'}" target="_blank" rel="noopener">${isOR?'openrouter.ai/keys':'console.groq.com/keys'}</a></small></div>
@@ -24979,8 +24971,6 @@ var __async = (__this, __arguments, generator) => {
                         const parsed = JSON.parse(r.result);
                         state = migrate(Object.assign(clone(D), parsed));
                         state.versions = state.versions || state.resumes.map(x => ({ ...x }));
-                        state.billing = state.billing || clone(D.billing);
-                        state.billing.enforcePremium = false;
                         state.navHistory = ['home'];
                         save();
                         renderSettings();
@@ -25306,7 +25296,6 @@ var __async = (__this, __arguments, generator) => {
             window.exportDOCX = exportDOCX;
 
             // ─── OVERLAY HELPERS ─────────────────────────────────────────
-            window.openPremium = function() { openOverlay('premium'); };
             window.openAI = function() { openOverlay('ai'); };
             window.openDoctor = function() { openOverlay('doctor'); };
             window.openInterview = function() { openOverlay('interview');
