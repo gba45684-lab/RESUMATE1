@@ -22418,6 +22418,29 @@ var __async = (__this, __arguments, generator) => {
         .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; margin-left:auto; min-width:0; }
         .back-btn { flex:none; min-height:28px; white-space:nowrap; }
         .header-tag { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+        /* OTA badge + dark header bar */
+        .header { background:#161A20 !important; position:relative; z-index:6; }
+        .header .brand { color:#EEEAE0; }
+        .header .brand b { color:#D2A95E; }
+        .header-right { display:flex; align-items:center; gap:8px; }
+        .header-tag {
+            position:absolute; top:100%; right:18px; margin-top:10px; z-index:4;
+        }
+        .ota-badge {
+            display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.14); border-radius:20px; padding:5px 12px 5px 10px;
+            font:600 11px 'IBM Plex Sans', sans-serif; color:#EEEAE0; cursor:pointer;
+            -webkit-tap-highlight-color:transparent; touch-action:manipulation; white-space:nowrap;
+        }
+        .ota-badge .ota-label { color:rgba(238,234,224,.6); font-size:10px; letter-spacing:.03em; }
+        .ota-badge .ota-check {
+            width:14px; height:14px; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;
+            background:#fff; color:#161A20; font-size:9px; flex:none;
+        }
+        .ota-badge.off .ota-check { background:transparent; border:1px solid rgba(238,234,224,.4); color:transparent; }
+        .ota-badge .ota-state { color:rgba(238,234,224,.55); font-size:10px; }
+        .ota-badge .ota-collapse { color:rgba(238,234,224,.4); font-weight:400; margin-left:1px; }
     </style>
 </head>
 <body>
@@ -22531,15 +22554,22 @@ var __async = (__this, __arguments, generator) => {
             /* Step 4: in the background, check for an update. Never applied this session --
                only stashed for next launch, so it can't interrupt an in-progress edit. */
             setTimeout(function () {
+                var otaEnabledNow; try { otaEnabledNow = localStorage.getItem('resumate.ota.enabled.v1') !== '0'; } catch (e) { otaEnabledNow = true; }
+                if (!otaEnabledNow) return;
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    try { localStorage.setItem('resumate.ota.uiState.v1', 'offline'); } catch (e) {}
+                    return;
+                }
+                try { localStorage.setItem('resumate.ota.uiState.v1', 'checking'); } catch (e) {}
                 fetch(OTA_VERSION_URL + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) {
                     if (!r.ok) throw new Error('manifest HTTP ' + r.status);
                     return r.json();
                 }).then(function (manifest) {
-                    if (!manifest || typeof manifest.build !== 'number') return;
-                    if (manifest.build <= CURRENT_BUILD) return;
-                    if (badBuilds().indexOf(manifest.build) !== -1) return;
+                    if (!manifest || typeof manifest.build !== 'number') { try { localStorage.setItem('resumate.ota.uiState.v1', 'up_to_date'); } catch (e) {} return; }
+                    if (manifest.build <= CURRENT_BUILD) { try { localStorage.setItem('resumate.ota.uiState.v1', 'up_to_date'); } catch (e) {} return; }
+                    if (badBuilds().indexOf(manifest.build) !== -1) { try { localStorage.setItem('resumate.ota.uiState.v1', 'up_to_date'); } catch (e) {} return; }
                     var cachedActive = readJSON(K_ACTIVE);
-                    if (cachedActive && cachedActive.build >= manifest.build) return; /* already downloaded */
+                    if (cachedActive && cachedActive.build >= manifest.build) { try { localStorage.setItem('resumate.ota.uiState.v1', 'update_ready'); } catch (e) {} return; } /* already downloaded */
                     return fetch(OTA_HTML_URL + '?v=' + Date.now(), { cache: 'no-store' }).then(function (hr) {
                         if (!hr.ok) throw new Error('bundle HTTP ' + hr.status);
                         return hr.text();
@@ -22556,12 +22586,13 @@ var __async = (__this, __arguments, generator) => {
                            below that point isn't possible without a new APK.) */
                         if (cachedActive && cachedActive.build === CURRENT_BUILD) writeJSON(K_PREVIOUS, cachedActive);
                         writeJSON(K_ACTIVE, { build: manifest.build, html: html });
+                        try { localStorage.setItem('resumate.ota.uiState.v1', 'update_ready'); } catch (e) {}
                         var notify = function () {
                             if (typeof window.toast === 'function') window.toast('Update ready — will apply next launch');
                         };
                         if (typeof window.toast === 'function') notify(); else window.addEventListener('load', function () { setTimeout(notify, 2000); });
                     });
-                }).catch(function () { /* offline, manifest missing, CORS, etc. -- silently do nothing */ });
+                }).catch(function () { try { localStorage.setItem('resumate.ota.uiState.v1', 'failed'); } catch (e) {} /* offline, manifest missing, CORS, etc. -- app itself is never blocked */ });
             }, 4000);
         } catch (e) { /* any unexpected failure here must never block the app from rendering */ }
     })();
@@ -22570,11 +22601,20 @@ var __async = (__this, __arguments, generator) => {
         <div class="top-space"></div>
         <div class="status-bar"><span id="statusBarTime">9:41</span><span id="statusBarBattery">100%</span></div>
         <div class="header">
-            <div class="brand">Resu<b>Mate</b> ✅</div>
+            <div class="brand">Resu<b>Mate</b></div>
 
-            <div class="header-actions">
-                <span class="header-tag" id="headerTag">Home</span>
-                <button class="back-btn" id="backBtn" onclick="window.smartBack()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <div class="header-right">
+                <div class="ota-badge" id="otaBadge" onclick="window.ResuMateOTA && window.ResuMateOTA.toggleEnabled()" role="button" aria-label="OTA updates">
+                    <span class="ota-label">OTA</span>
+                    <span class="ota-check" id="otaCheck"><i class="fa-solid fa-check"></i></span>
+                    <span id="otaOnLabel">ON</span>
+                    <span class="ota-state" id="otaStateLabel">Always on</span>
+                    <span class="ota-collapse">—</span>
+                </div>
+                <div class="header-actions">
+                    <span class="header-tag" id="headerTag">Home</span>
+                    <button class="back-btn" id="backBtn" onclick="window.smartBack()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                </div>
             </div>
         </div>
         <div class="content" id="content">
@@ -22876,6 +22916,53 @@ var __async = (__this, __arguments, generator) => {
             function openOverlay(id) { document.getElementById(id).classList.add('show'); }
 
             function closeOverlay(id) { document.getElementById(id).classList.remove('show'); }
+
+            // ─── OTA BADGE (header) ──────────────────────────────────────
+            const OTA_ENABLED_KEY = 'resumate.ota.enabled.v1';
+            const OTA_UI_STATE_KEY = 'resumate.ota.uiState.v1';
+            const OTA_STATE_LABELS = {
+                idle: 'Always on', checking: 'Checking…', up_to_date: 'Up to date',
+                update_ready: 'Update ready', failed: 'Check failed', offline: 'Offline'
+            };
+            function otaEnabled() { try { return localStorage.getItem(OTA_ENABLED_KEY) !== '0'; } catch (e) { return true; } }
+            function otaUiState() { try { return localStorage.getItem(OTA_UI_STATE_KEY) || 'idle'; } catch (e) { return 'idle'; } }
+            function renderOtaBadge() {
+                const badge = document.getElementById('otaBadge'); if (!badge) return;
+                const enabled = otaEnabled();
+                badge.classList.toggle('off', !enabled);
+                const onLabel = document.getElementById('otaOnLabel'); if (onLabel) onLabel.textContent = enabled ? 'ON' : 'OFF';
+                const stateLabel = document.getElementById('otaStateLabel');
+                if (stateLabel) stateLabel.textContent = enabled ? (OTA_STATE_LABELS[otaUiState()] || 'Always on') : 'Disabled';
+            }
+            function toggleOtaEnabled() {
+                const next = !otaEnabled();
+                try { localStorage.setItem(OTA_ENABLED_KEY, next ? '1' : '0'); } catch (e) {}
+                renderOtaBadge();
+                toast(next ? 'Automatic updates on' : 'Automatic updates off');
+                if (next && typeof window.ResuMateOTA.checkNow === 'function') window.ResuMateOTA.checkNow();
+            }
+            function otaCheckNow() {
+                if (!otaEnabled()) { toast('Automatic updates are off'); return; }
+                try { localStorage.setItem(OTA_UI_STATE_KEY, 'checking'); } catch (e) {}
+                renderOtaBadge();
+                if (!navigator.onLine) {
+                    try { localStorage.setItem(OTA_UI_STATE_KEY, 'offline'); } catch (e) {}
+                    renderOtaBadge();
+                    return;
+                }
+                const url = 'https://raw.githubusercontent.com/gba45684-lab/RESUMATE1/ota/version.json?ui_check=' + Date.now();
+                fetch(url, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                    .then(manifest => {
+                        const current = window.__RESUMATE_BUILD__ || 0;
+                        const remoteBuild = (manifest.web && manifest.web.build) || manifest.build || 0;
+                        const state = remoteBuild > current ? 'update_ready' : 'up_to_date';
+                        try { localStorage.setItem(OTA_UI_STATE_KEY, state); } catch (e) {}
+                        renderOtaBadge();
+                    })
+                    .catch(() => { try { localStorage.setItem(OTA_UI_STATE_KEY, 'failed'); } catch (e) {} renderOtaBadge(); });
+            }
+            window.ResuMateOTA = { toggleEnabled: toggleOtaEnabled, checkNow: otaCheckNow, getState: () => ({ enabled: otaEnabled(), uiState: otaUiState() }) };
+            renderOtaBadge();
 
             // ─── EXPOSE TO GLOBAL SCOPE ──────────────────────────────────
             window.toast = toast;
