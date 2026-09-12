@@ -20814,27 +20814,29 @@ var __async = (__this, __arguments, generator) => {
         .preview-rail {
             position: absolute;
             right: 14px;
-            top: 50%;
-            transform: translateY(-50%) scale(0.85);
+            bottom: calc(50% + 32px);
+            top: auto;
+            transform-origin: bottom right;
+            transform: scale(0.85);
             opacity: 0;
             pointer-events: none;
             background: var(--card);
-            border-radius: 20px;
+            border-radius: 22px;
             border: 1px solid var(--line);
-            padding: 8px 6px;
+            padding: 10px 7px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 2px;
+            gap: 3px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.06);
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 9;
-            width: 44px;
+            width: 52px;
             max-height: 380px;
             overflow-y: auto;
         }
         .preview-rail.open {
-            transform: translateY(-50%) scale(1);
+            transform: scale(1);
             opacity: 1;
             pointer-events: auto;
         }
@@ -20855,13 +20857,13 @@ var __async = (__this, __arguments, generator) => {
         }
 
         .preview-rail .rail-btn {
-            width: 32px;
-            height: 32px;
+            width: 38px;
+            height: 38px;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             background: transparent;
             color: var(--faint);
-            font-size: 14px;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: grid;
@@ -20881,7 +20883,7 @@ var __async = (__this, __arguments, generator) => {
         /* ─── TOOLTIP LABEL ─── */
         .preview-rail .rail-btn .label {
             position: absolute;
-            right: 44px;
+            right: 50px;
             top: 50%;
             transform: translateY(-50%) scale(0.9);
             background: var(--ink);
@@ -20913,7 +20915,7 @@ var __async = (__this, __arguments, generator) => {
         /* ─── FLYOUT PANEL ─── */
         .flyout {
             position: absolute;
-            right: 72px;
+            right: 80px;
             top: 50%;
             transform: translateY(-50%) translateX(12px) scale(0.94);
             opacity: 0;
@@ -21982,20 +21984,21 @@ var __async = (__this, __arguments, generator) => {
             }
             .preview-rail {
                 right: 10px;
-                width: 38px;
-                padding: 6px 4px;
+                width: 44px;
+                padding: 7px 5px;
+                bottom: calc(50% + 27px);
             }
             .preview-rail .rail-btn {
-                width: 30px;
-                height: 30px;
-                font-size: 12px;
-                border-radius: 8px;
+                width: 34px;
+                height: 34px;
+                font-size: 14px;
+                border-radius: 10px;
             }
             .preview-rail .rail-btn .label {
                 display: none;
             }
             .flyout {
-                right: 58px;
+                right: 66px;
                 width: 180px;
                 max-height: 280px;
                 padding: 12px 14px;
@@ -22488,6 +22491,31 @@ var __async = (__this, __arguments, generator) => {
 
         function readJSON(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
         function writeJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+        function otaAlertNewVersion() {
+            /* Best-effort: never let any of these throw and break the OTA flow */
+            try {
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if (Ctx) {
+                    var ctx = new Ctx();
+                    var osc = ctx.createOscillator(), gain = ctx.createGain();
+                    osc.type = 'sine'; osc.frequency.value = 880;
+                    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.start(); osc.stop(ctx.currentTime + 0.35);
+                    setTimeout(function () { try { ctx.close(); } catch (e) {} }, 500);
+                }
+            } catch (e) {}
+            try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (e) {}
+            try {
+                if ('Notification' in window) {
+                    var showIt = function () { try { new Notification('ResuMate update ready', { body: 'A new version has downloaded and will apply next time you open the app.' }); } catch (e) {} };
+                    if (Notification.permission === 'granted') showIt();
+                    else if (Notification.permission === 'default') { Notification.requestPermission().then(function (p) { if (p === 'granted') showIt(); }); }
+                }
+            } catch (e) {}
+        }
         function readNum(key) { try { var v = localStorage.getItem(key); return v ? parseInt(v, 10) : null; } catch (e) { return null; } }
         function writeNum(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) {} }
         function badBuilds() { try { return JSON.parse(localStorage.getItem(K_BAD_BUILDS) || '[]'); } catch (e) { return []; } }
@@ -22594,6 +22622,7 @@ var __async = (__this, __arguments, generator) => {
                         try { localStorage.setItem('resumate.ota.uiState.v1', 'update_ready'); } catch (e) {}
                         var notify = function () {
                             if (typeof window.toast === 'function') window.toast('Update ready — will apply next launch');
+                            otaAlertNewVersion();
                         };
                         if (typeof window.toast === 'function') notify(); else window.addEventListener('load', function () { setTimeout(notify, 2000); });
                     });
@@ -22902,6 +22931,22 @@ var __async = (__this, __arguments, generator) => {
                 t.classList.add('show');
                 clearTimeout(window.tt);
                 window.tt = setTimeout(() => t.classList.remove('show'), 1900);
+            }
+
+            // Shared success/failure feedback for file exports (PDF/DOCX): a toast is
+            // already shown by the caller, this adds a haptic buzz and — only when
+            // there's no native Android bridge handling it already — a best-effort
+            // system notification. Never throws; every call is wrapped defensively.
+            function exportFeedback(ok, title, body) {
+                try { if (navigator.vibrate) navigator.vibrate(ok ? [40, 40, 40] : [30, 60, 30, 60, 30]); } catch (e) {}
+                if (window.ResuMateNative) return; // native side already raises its own system notification via notifyDownload
+                try {
+                    if ('Notification' in window) {
+                        const show = () => { try { new Notification(title, { body }); } catch (e) {} };
+                        if (Notification.permission === 'granted') show();
+                        else if (Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') show(); });
+                    }
+                } catch (e) {}
             }
 
             function openOverlay(id) { document.getElementById(id).classList.add('show'); }
@@ -25075,8 +25120,10 @@ var __async = (__this, __arguments, generator) => {
                         setTimeout(() => URL.revokeObjectURL(url), 2000);
                         toast('PDF downloaded');
                     }
+                    exportFeedback(true, 'PDF exported', filename + ' is ready.');
                 } catch (err) {
                     toast('PDF export error: ' + err.message);
+                    exportFeedback(false, 'PDF export failed', err.message || 'Something went wrong exporting your resume.');
                     console.error(err);
                 } finally {
                     if (temp && temp.parentNode) temp.parentNode.removeChild(temp);
@@ -25282,8 +25329,10 @@ var __async = (__this, __arguments, generator) => {
                         setTimeout(() => URL.revokeObjectURL(url), 2000);
                         toast('DOCX downloaded');
                     }
+                    exportFeedback(true, 'DOCX exported', filename + ' is ready.');
                 } catch (e) {
                     toast('DOCX export error: ' + e.message);
+                    exportFeedback(false, 'DOCX export failed', e.message || 'Something went wrong exporting your resume.');
                     console.error(e);
                 } finally {
                     if (source && source.parentNode) source.parentNode.removeChild(source);
