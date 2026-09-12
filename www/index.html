@@ -21302,7 +21302,7 @@ var __async = (__this, __arguments, generator) => {
             font-size: 9px;
             letter-spacing: .04em;
             text-transform: uppercase;
-            margin: 12px 0 4px;
+            margin: calc(12px * var(--fill-stretch, 1)) 0 4px;
             padding-bottom: 2px;
             border-bottom: 1px solid rgba(0, 0, 0, .08);
             color: var(--accent, #1D3450);
@@ -21310,13 +21310,13 @@ var __async = (__this, __arguments, generator) => {
         }
         .paper p {
             color: var(--resume-text, #4a4a4a);
-            margin-bottom: 3px;
+            margin-bottom: calc(3px * var(--fill-stretch, 1));
             font-size: 8.5px;
             line-height: 1.5;
         }
         .paper li {
             color: var(--resume-text, #4a4a4a);
-            margin-bottom: 2px;
+            margin-bottom: calc(2px * var(--fill-stretch, 1));
             font-size: 8.5px;
             line-height: 1.5;
         }
@@ -21330,7 +21330,7 @@ var __async = (__this, __arguments, generator) => {
             background: #f5f5f5;
         }
         .paper .exp-item {
-            margin-bottom: 6px;
+            margin-bottom: calc(6px * var(--fill-stretch, 1));
         }
         .paper .exp-header {
             display: flex;
@@ -22941,6 +22941,38 @@ var __async = (__this, __arguments, generator) => {
             function esc(v) { return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
                     '"': '&quot;', "'": '&#039;' }[m])); }
 
+            // ─── COLOR-CONTRAST HELPERS (resume templates) ──────────────────
+            // Every template lets the person pick any accent color, so anything
+            // rendered on top of it (skill pills) or drawn in it on a white page
+            // (skill grid borders/text) needs to auto-adjust for legibility
+            // instead of assuming a fixed dark accent + white text.
+            function hexToRgb(hex) {
+                const h = String(hex || '').replace('#', '').trim();
+                const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                const n = parseInt(full, 16);
+                if (full.length !== 6 || isNaN(n)) return { r: 0, g: 0, b: 0 };
+                return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+            }
+            function relativeLuminance({ r, g, b }) {
+                const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+                return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+            }
+            // Best readable text color (near-white or near-black ink) for a filled
+            // background of the given color — used for skill pills.
+            function contrastTextOn(bgHex) {
+                return relativeLuminance(hexToRgb(bgHex)) > 0.5 ? '#1a1a1a' : '#ffffff';
+            }
+            // For accent-colored text/borders sitting directly on the white page
+            // (not inside a filled pill): if the accent itself is too pale to read
+            // on white, darken it just enough to stay legible while keeping its hue.
+            function legibleOnWhite(hex) {
+                const { r, g, b } = hexToRgb(hex);
+                if (relativeLuminance({ r, g, b }) <= 0.62) return hex; // already readable
+                const darken = 0.55; // pull toward black while preserving hue
+                const dr = Math.round(r * darken), dg = Math.round(g * darken), db = Math.round(b * darken);
+                return '#' + [dr, dg, db].map(v => v.toString(16).padStart(2, '0')).join('');
+            }
+
             function toast(msg) {
                 const t = document.getElementById('toast');
                 t.textContent = msg;
@@ -23279,17 +23311,25 @@ var __async = (__this, __arguments, generator) => {
                 const pageHeightPx = pageWidthPx * A4_RATIO;
                 const overflowRatio = naturalHeightPx / pageHeightPx;
                 if (overflowRatio <= 1) {
-                    return { pageHeightPx, scale: 1, isMultiPage: false, pageCount: 1 };
+                    // Content is shorter than a full page. Rather than leaving a
+                    // large dead gap at the bottom, gently spread out the natural
+                    // vertical rhythm (section spacing, paragraph/bullet spacing)
+                    // so a short resume still reads as a deliberately-composed
+                    // full page rather than a half-empty one. Capped at 1.35x so
+                    // very short content (e.g. a near-empty draft) doesn't get
+                    // stretched to something absurd.
+                    const fillScale = overflowRatio > 0 ? Math.min(1.35, Math.max(1, 0.94 / overflowRatio)) : 1;
+                    return { pageHeightPx, scale: 1, fillScale, isMultiPage: false, pageCount: 1 };
                 }
                 if (overflowRatio <= 1.5) {
                     // Close enough to one page — shrink everything uniformly
                     // (never below 72%) so it fits on a single A4 sheet.
                     const scale = Math.max(pageHeightPx / naturalHeightPx, 0.72);
-                    return { pageHeightPx, scale, isMultiPage: false, pageCount: 1 };
+                    return { pageHeightPx, scale, fillScale: 1, isMultiPage: false, pageCount: 1 };
                 }
                 // Genuinely multi-page — leave full-size and report where
                 // each page break falls.
-                return { pageHeightPx, scale: 1, isMultiPage: true, pageCount: Math.ceil(overflowRatio) };
+                return { pageHeightPx, scale: 1, fillScale: 1, isMultiPage: true, pageCount: Math.ceil(overflowRatio) };
             }
             const ALT_STYLE = { default: 'bold', bold: 'default', plain: 'ledger', ledger: 'plain', serif: 'plain', sideRule: 'boxedTop', boxedTop: 'sideRule' };
             function pickStyle(base, variant) { return variant === 'B' ? (ALT_STYLE[base] || base) : base; }
@@ -23315,10 +23355,12 @@ var __async = (__this, __arguments, generator) => {
                 }
             }
             function skillPills(skills, accent) {
-                return `<div class="skills">${skills.map(s=>`<span style="background:${accent};color:#fff;border-color:${accent}">${esc(s)}</span>`).join('')}</div>`;
+                const textColor = contrastTextOn(accent);
+                return `<div class="skills">${skills.map(s=>`<span style="background:${accent};color:${textColor};border-color:${accent}">${esc(s)}</span>`).join('')}</div>`;
             }
             function skillGrid(skills, accent) {
-                return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:4px 0">${skills.map(s=>`<div style="border:1px solid ${accent};border-radius:4px;padding:3px 4px;font-size:7px;text-align:center;color:${accent}">${esc(s)}</div>`).join('')}</div>`;
+                const legible = legibleOnWhite(accent);
+                return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:4px 0">${skills.map(s=>`<div style="border:1px solid ${legible};border-radius:4px;padding:3px 4px;font-size:7px;text-align:center;color:${legible}">${esc(s)}</div>`).join('')}</div>`;
             }
             function expBlockTimeline(exp, accent) {
                 if (!exp.length) return '';
@@ -23842,9 +23884,16 @@ var __async = (__this, __arguments, generator) => {
                 paperEl.style.transform = '';
                 frame.style.width = '';
                 frame.style.height = '';
-                const naturalHeight = paperEl.scrollHeight;
+                paperEl.style.setProperty('--fill-stretch', 1); // measure unstretched first
+                const preHeight = paperEl.scrollHeight;
                 const naturalWidth = paperEl.offsetWidth; // fixed 793px (true A4 width)
-                const fit = getA4FitInfo(naturalHeight, naturalWidth);
+                const preFit = getA4FitInfo(preHeight, naturalWidth);
+                // Applying the fill-stretch changes real content height (extra
+                // section/paragraph spacing), so re-measure after setting it
+                // rather than sizing the frame off the pre-stretch height.
+                paperEl.style.setProperty('--fill-stretch', preFit.fillScale || 1);
+                const naturalHeight = preFit.fillScale && preFit.fillScale !== 1 ? paperEl.scrollHeight : preHeight;
+                const fit = preFit.fillScale && preFit.fillScale !== 1 ? getA4FitInfo(naturalHeight, naturalWidth) : preFit;
                 // Scale the true-size page down to fit the visible stage
                 // width, so on-screen proportions match the printed page.
                 const availableWidth = stage.clientWidth - 16; // minus the 8px+8px padding
@@ -25090,8 +25139,14 @@ var __async = (__this, __arguments, generator) => {
                     // mm->px ratio (210mm wide) so it's accurate regardless of
                     // device pixel ratio. Same helper the Live Preview canvas
                     // uses, so export always matches what was previewed.
-                    const naturalHeight = paperEl.scrollHeight;
-                    const fit = getA4FitInfo(naturalHeight, temp.offsetWidth);
+                    const preHeight = paperEl.scrollHeight;
+                    const preFit = getA4FitInfo(preHeight, temp.offsetWidth);
+                    // Same two-pass approach as the live preview: applying
+                    // --fill-stretch changes real content height on short
+                    // resumes, so re-measure after setting it.
+                    paperEl.style.setProperty('--fill-stretch', preFit.fillScale || 1);
+                    const naturalHeight = preFit.fillScale && preFit.fillScale !== 1 ? paperEl.scrollHeight : preHeight;
+                    const fit = preFit.fillScale && preFit.fillScale !== 1 ? getA4FitInfo(naturalHeight, temp.offsetWidth) : preFit;
                     if (fit.scale < 1) {
                         // Content only slightly overruns one page — shrink
                         // it uniformly (text, spacing, everything) so it
