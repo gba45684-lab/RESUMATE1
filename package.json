@@ -13,13 +13,16 @@
     "test:syntax": "node scripts/test-syntax.mjs"
   },
   "dependencies": {
-    "@capacitor/core": "^7.4.3"
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/filesystem": "^7.1.8",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/local-notifications": "^7.0.7"
   },
   "devDependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
-    "typescript": "^5.9.2",
-    "playwright-core": "^1.63.0"
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.9.2"
   },
   "engines": {
     "node": ">=20"
