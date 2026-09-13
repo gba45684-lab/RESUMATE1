@@ -20814,9 +20814,12 @@ var __async = (__this, __arguments, generator) => {
         .preview-rail {
             position: absolute;
             right: 14px;
-            bottom: calc(50% + 32px);
-            top: auto;
-            transform-origin: bottom right;
+            /* Anchored from the bottom, just above the ball trigger (44px tall,
+               vertically centered) plus a clear gap -- so the rail only ever
+               grows upward, away from the ball, and can never overlap it
+               regardless of how many buttons it contains. */
+            bottom: calc(50% + 34px);
+            transform-origin: bottom center;
             transform: scale(0.85);
             opacity: 0;
             pointer-events: none;
@@ -20920,14 +20923,14 @@ var __async = (__this, __arguments, generator) => {
             transform: translateY(-50%) translateX(12px) scale(0.94);
             opacity: 0;
             pointer-events: none;
-            width: 240px;
-            max-height: 360px;
+            width: 280px;
+            max-height: 440px;
             background: var(--card);
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--line);
-            padding: 14px 16px;
+            padding: 16px 18px;
             overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.08);
             transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 8;
             will-change: transform, opacity;
@@ -21892,6 +21895,9 @@ var __async = (__this, __arguments, generator) => {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
         }
+        .toast.success { border-left-color: #3F9142; animation: toastPop .35s cubic-bezier(.34,1.56,.64,1); }
+        .toast.error { border-left-color: #B23B3B; animation: toastPop .35s cubic-bezier(.34,1.56,.64,1); }
+        @keyframes toastPop { 0% { transform: translateX(-50%) translateY(20px) scale(.92); } 60% { transform: translateX(-50%) translateY(0) scale(1.03); } 100% { transform: translateX(-50%) translateY(0) scale(1); } }
         .dark {
             color-scheme: dark;
             --paper: #151920;
@@ -21998,10 +22004,10 @@ var __async = (__this, __arguments, generator) => {
                 display: none;
             }
             .flyout {
-                right: 66px;
-                width: 180px;
-                max-height: 280px;
-                padding: 12px 14px;
+                right: 58px;
+                width: 220px;
+                max-height: 360px;
+                padding: 14px 16px;
             }
             .flyout .grid {
                 grid-template-columns: 1fr 1fr;
@@ -22953,30 +22959,30 @@ var __async = (__this, __arguments, generator) => {
                 if (full.length !== 6 || isNaN(n)) return { r: 0, g: 0, b: 0 };
                 return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
             }
-            function relativeLuminance({ r, g, b }) {
-                const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-                return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-            }
             // Best readable text color (near-white or near-black ink) for a filled
             // background of the given color — used for skill pills.
             function contrastTextOn(bgHex) {
-                return relativeLuminance(hexToRgb(bgHex)) > 0.5 ? '#1a1a1a' : '#ffffff';
+                return relativeLuminance(bgHex) > 0.5 ? '#1a1a1a' : '#ffffff';
             }
             // For accent-colored text/borders sitting directly on the white page
             // (not inside a filled pill): if the accent itself is too pale to read
             // on white, darken it just enough to stay legible while keeping its hue.
             function legibleOnWhite(hex) {
                 const { r, g, b } = hexToRgb(hex);
-                if (relativeLuminance({ r, g, b }) <= 0.62) return hex; // already readable
+                if (relativeLuminance(hex) <= 0.62) return hex; // already readable
                 const darken = 0.55; // pull toward black while preserving hue
                 const dr = Math.round(r * darken), dg = Math.round(g * darken), db = Math.round(b * darken);
                 return '#' + [dr, dg, db].map(v => v.toString(16).padStart(2, '0')).join('');
             }
 
-            function toast(msg) {
+            function toast(msg, type) {
                 const t = document.getElementById('toast');
-                t.textContent = msg;
+                const icon = type === 'success' ? '\u2713 ' : type === 'error' ? '\u2715 ' : '';
+                t.textContent = icon + msg;
+                t.classList.remove('success', 'error');
+                if (type === 'success' || type === 'error') t.classList.add(type);
                 t.classList.add('show');
+                if (typeof hapticFeedback === 'function' && (type === 'success' || type === 'error')) hapticFeedback(type);
                 clearTimeout(window.tt);
                 window.tt = setTimeout(() => t.classList.remove('show'), 1900);
             }
@@ -23062,10 +23068,88 @@ var __async = (__this, __arguments, generator) => {
             window.ResuMateOTA = { toggleEnabled: toggleOtaEnabled, checkNow: otaCheckNow, getState: () => ({ enabled: otaEnabled(), uiState: otaUiState() }) };
             renderOtaBadge();
 
+            // ─── HAPTICS (Capacitor plugin when available, navigator.vibrate fallback) ──
+            function hapticFeedback(kind) {
+                try {
+                    const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
+                    if (H) {
+                        if (kind === 'success' && H.notification) return H.notification({ type: 'SUCCESS' });
+                        if (kind === 'error' && H.notification) return H.notification({ type: 'ERROR' });
+                        if (kind === 'warning' && H.notification) return H.notification({ type: 'WARNING' });
+                        if (H.impact) return H.impact({ style: kind === 'heavy' ? 'HEAVY' : kind === 'light' ? 'LIGHT' : 'MEDIUM' });
+                    }
+                } catch (e) { /* Haptics plugin not present in this build -- fall through */ }
+                try {
+                    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+                    const patterns = { success: [30], error: [40, 60, 40], warning: [50, 40, 50], light: [15], medium: [30], heavy: [45] };
+                    navigator.vibrate(patterns[kind] || [25]);
+                } catch (e) { /* vibration not supported/allowed -- never let this break the caller */ }
+            }
+            window.hapticFeedback = hapticFeedback;
+
+            // ─── OTA UPDATE-DETECTED ALERT (chime + vibrate + permission-gated notification) ──
+            function playOtaChime() {
+                try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (!Ctx) return;
+                    const ctx = new Ctx();
+                    const now = ctx.currentTime;
+                    [[880, 0], [1175, 0.11]].forEach(([freq, delay]) => {
+                        const osc = ctx.createOscillator(), gain = ctx.createGain();
+                        osc.type = 'sine'; osc.frequency.value = freq;
+                        gain.gain.setValueAtTime(0, now + delay);
+                        gain.gain.linearRampToValueAtTime(0.12, now + delay + 0.015);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.22);
+                        osc.connect(gain); gain.connect(ctx.destination);
+                        osc.start(now + delay); osc.stop(now + delay + 0.24);
+                    });
+                    setTimeout(() => { try { ctx.close(); } catch (e) {} }, 600);
+                } catch (e) { /* autoplay blocked or unsupported -- silent is fine, vibration/notification still fire */ }
+            }
+            function notifyOtaUpdateDetected() {
+                playOtaChime();
+                hapticFeedback('success');
+                try {
+                    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        new Notification('ResuMate update ready', {
+                            body: 'A new version downloaded in the background. It applies automatically next time you open the app.',
+                            tag: 'resumate-ota', silent: false
+                        });
+                    }
+                } catch (e) { /* Notification API unsupported in this WebView -- chime/vibration already covered it */ }
+            }
+            function requestOtaNotificationPermission() {
+                try {
+                    if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported here'); return; }
+                    if (Notification.permission === 'granted') { toast('Notifications already enabled'); return; }
+                    Notification.requestPermission().then(p => toast(p === 'granted' ? 'Notifications enabled' : 'Notifications not enabled'));
+                } catch (e) { toast('Couldn\u2019t request notification permission'); }
+            }
+            window.requestOtaNotificationPermission = requestOtaNotificationPermission;
+
+            (function watchForOtaUpdateDetected() {
+                const NOTIFIED_KEY = 'resumate.ota.notifiedBuild.v1';
+                function activeDownloadedBuild() {
+                    try { const a = JSON.parse(localStorage.getItem('resumate.ota.active.v1') || 'null'); return a ? a.build : null; } catch (e) { return null; }
+                }
+                function check() {
+                    if (!otaEnabled()) return;
+                    if (otaUiState() !== 'update_ready') return;
+                    const build = activeDownloadedBuild(); if (build == null) return;
+                    let notified = null; try { notified = localStorage.getItem(NOTIFIED_KEY); } catch (e) {}
+                    if (String(build) === notified) return; // already alerted for this exact build
+                    try { localStorage.setItem(NOTIFIED_KEY, String(build)); } catch (e) {}
+                    notifyOtaUpdateDetected();
+                }
+                check(); // covers an update already found before this script ran
+                setInterval(check, 2000);
+            })();
+
             // ─── EXPOSE TO GLOBAL SCOPE ──────────────────────────────────
             window.toast = toast;
             window.closeOverlay = closeOverlay;
             window.openOverlay = openOverlay;
+            window.saveBlobToNative = saveBlobToNative;
 
             // ─── NAVIGATION ──────────────────────────────────────────────
             function go(name, fromBack = false) {
@@ -23300,6 +23384,25 @@ var __async = (__this, __arguments, generator) => {
                 return document.body.classList.contains('dark') ? shade(hex, 30) : hex;
             }
 
+            // ─── Auto-contrast for text placed on an accent-colored background ──
+            // Accent color is fully user-customizable (a free color picker), so a
+            // template that always hardcodes white text on it can become illegible
+            // if someone picks a light accent (e.g. pale yellow). These compute the
+            // right text color from the accent's actual relative luminance instead.
+            function relativeLuminance(hex) {
+                try {
+                    const c = String(hex || '').replace('#', '');
+                    const full = c.length === 3 ? c.split('').map(x => x + x).join('') : c;
+                    const r = parseInt(full.substr(0, 2), 16) / 255, g = parseInt(full.substr(2, 2), 16) / 255, b = parseInt(full.substr(4, 2), 16) / 255;
+                    const lin = v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+                    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+                } catch (e) { return 0; } // treat unparsable input as dark -- keeps prior white-on-accent default
+            }
+            function contrastOn(hex) { return relativeLuminance(hex) > 0.55 ? '#181A1F' : '#fff'; }
+            function contrastOnSoft(hex, opacity) {
+                return contrastOn(hex) === '#fff' ? `rgba(255,255,255,${opacity})` : `rgba(24,26,31,${opacity})`;
+            }
+
             // ─── Shared A4 page-fit math ────────────────────────────────
             // Used by BOTH the Live Preview canvas and the PDF exporter so
             // they always agree on whether a resume fits one page, how much
@@ -23403,14 +23506,14 @@ var __async = (__this, __arguments, generator) => {
                 return `<h2>${esc(p.name)}</h2><div class="role" style="color:${accent||'#666'};text-transform:none;font-weight:500;letter-spacing:0">${esc(p.role)}</div>${contactLine(p)}`;
             }
             function hBanner(p, accent) {
-                return `<div style="background:${accent};color:#fff;padding:16px;margin:-18px -16px 10px;border-radius:4px 4px 0 0"><h2 style="color:#fff">${esc(p.name)}</h2><div class="role" style="color:rgba(255,255,255,.85)">${esc(p.role)}</div><div style="font-size:7px;color:rgba(255,255,255,.75);margin-top:2px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div></div>`;
+                return `<div style="background:${accent};color:${contrastOn(accent)};padding:16px;margin:-18px -16px 10px;border-radius:4px 4px 0 0"><h2 style="color:${contrastOn(accent)}">${esc(p.name)}</h2><div class="role" style="color:${contrastOnSoft(accent,.85)}">${esc(p.role)}</div><div style="font-size:7px;color:${contrastOnSoft(accent,.75)};margin-top:2px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div></div>`;
             }
             function hBannerDiagonal(p, accent) {
                 const grad = `linear-gradient(115deg, ${accent} 55%, ${shade(accent,-18)} 55%)`;
                 return `<div style="background:${grad};color:#fff;padding:16px;margin:-18px -16px 10px;border-radius:4px 4px 0 0"><h2 style="color:#fff">${esc(p.name)}</h2><div class="role" style="color:rgba(255,255,255,.85)">${esc(p.role)}</div><div style="font-size:7px;color:rgba(255,255,255,.75);margin-top:2px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div></div>`;
             }
             function hMonogram(p, accent) {
-                return `<div style="background:${accent};color:#fff;padding:14px;margin:-18px -16px 10px;border-radius:4px 4px 0 0;display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none">${initials(p.name)}</div><div><h2 style="color:#fff;font-size:16px;margin:0">${esc(p.name)}</h2><div style="color:rgba(255,255,255,.85);font-size:9px;text-transform:uppercase;letter-spacing:.04em">${esc(p.role)}</div></div></div><div style="font-size:7px;color:#888;margin-bottom:6px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div>`;
+                return `<div style="background:${accent};color:${contrastOn(accent)};padding:14px;margin:-18px -16px 10px;border-radius:4px 4px 0 0;display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:${contrastOnSoft(accent,.22)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none">${initials(p.name)}</div><div><h2 style="color:${contrastOn(accent)};font-size:16px;margin:0">${esc(p.name)}</h2><div style="color:${contrastOnSoft(accent,.85)};font-size:9px;text-transform:uppercase;letter-spacing:.04em">${esc(p.role)}</div></div></div><div style="font-size:7px;color:#888;margin-bottom:6px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div>`;
             }
             function hRightContact(p, accent) {
                 return `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid ${accent};padding-bottom:6px;margin-bottom:8px"><div><h2 style="text-transform:uppercase;letter-spacing:.03em">${esc(p.name)}</h2><div class="role" style="color:${accent}">${esc(p.role)}</div></div><div style="text-align:right;font-size:7px;color:#777">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join('<br>')}</div></div>`;
@@ -23419,7 +23522,7 @@ var __async = (__this, __arguments, generator) => {
                 return `<div style="text-align:center;border-bottom:3px double ${accent};padding-bottom:8px;margin-bottom:8px"><h2 style="font-family:'Playfair Display',serif;letter-spacing:.06em">${esc(p.name).toUpperCase()}</h2><div class="role" style="color:${accent}">${esc(p.role)}</div><div class="contact-line" style="justify-content:center">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div></div>`;
             }
             function hTagline(p, accent) {
-                return `<h2>${esc(p.name)}</h2><div style="display:inline-block;background:${accent};color:#fff;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;text-transform:uppercase;margin:3px 0 6px">${esc(p.role)}</div>${contactLine(p)}`;
+                return `<h2>${esc(p.name)}</h2><div style="display:inline-block;background:${accent};color:${contrastOn(accent)};padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;text-transform:uppercase;margin:3px 0 6px">${esc(p.role)}</div>${contactLine(p)}`;
             }
             function hUnderlineName(p, accent) {
                 return `<div style="text-align:center;margin-bottom:4px"><h2 style="display:inline-block;border-bottom:3px solid ${accent};padding-bottom:3px">${esc(p.name)}</h2><div class="role" style="color:${accent}">${esc(p.role)}</div><div class="contact-line" style="justify-content:center">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join(' · ')}</div></div>`;
@@ -23436,7 +23539,7 @@ var __async = (__this, __arguments, generator) => {
                     const swap = v === 'B';
                     const sideExtra1 = swap ? (s.additional.awards ? sectionHeading('AWARDS',accent,'whiteOnDark')+`<p style="color:#eee;font-size:7.5px">${esc(s.additional.awards)}</p>` : '') : (s.additional.languages?sectionHeading('LANGUAGES',accent,'whiteOnDark')+`<p style="color:#eee;font-size:7.5px">${esc(s.additional.languages)}</p>`:'');
                     const mainExtra = buildSections(s, accent, 'default');
-                    return `<div class="sidebar-layout"><div class="sidebar" style="background:${accent};color:#fff;padding:14px 12px;margin:-18px 0 -18px -16px">
+                    return `<div class="sidebar-layout"><div class="sidebar" style="background:${accent};color:${contrastOn(accent)};padding:14px 12px;margin:-18px 0 -18px -16px">
                         <h2 style="color:#fff;font-size:16px;margin-bottom:2px">${esc(p.name)}</h2>
                         <div style="font-weight:600;font-size:9px;text-transform:uppercase;color:rgba(255,255,255,.75);margin-bottom:6px">${esc(p.role)}</div>
                         <div style="font-size:7px;color:rgba(255,255,255,.6);margin-bottom:8px">${[p.email,p.phone,p.location].filter(Boolean).map(esc).join('<br>')}</div>
@@ -23448,7 +23551,7 @@ var __async = (__this, __arguments, generator) => {
                 }},
                 { key: 'sidebar-bloom', ats: false, swatch: 'sidebar-right', render: (s, accent, v) => {
                     const p = s.profile, ratio = v === 'B' ? '32%' : '30%';
-                    return `<div style="display:grid;grid-template-columns:${100-parseInt(ratio)}% ${ratio};gap:0"><div style="padding-right:12px">${s.summary?`<p>${esc(s.summary)}</p>`:''}${expBlock(s.experience,accent)}${s.projects.length?sectionHeading('PROJECTS',accent,'default')+projBlock(s.projects):''}${s.certifications.length?sectionHeading('CERTIFICATIONS',accent,'default')+certBlock(s.certifications):''}</div><div style="background:${accent};color:#fff;padding:14px 12px;margin:-18px -16px -18px 0">
+                    return `<div style="display:grid;grid-template-columns:${100-parseInt(ratio)}% ${ratio};gap:0"><div style="padding-right:12px">${s.summary?`<p>${esc(s.summary)}</p>`:''}${expBlock(s.experience,accent)}${s.projects.length?sectionHeading('PROJECTS',accent,'default')+projBlock(s.projects):''}${s.certifications.length?sectionHeading('CERTIFICATIONS',accent,'default')+certBlock(s.certifications):''}</div><div style="background:${accent};color:${contrastOn(accent)};padding:14px 12px;margin:-18px -16px -18px 0">
                         ${s.skills.length?sectionHeading('SKILLS',accent,'whiteOnDark')+skillTags(s.skills):''}
                         ${s.education.length?sectionHeading('EDUCATION',accent,'whiteOnDark')+eduBlock(s.education):''}
                         ${s.additional.languages?sectionHeading('LANGUAGES',accent,'whiteOnDark')+`<p style="color:#eee;font-size:7.5px">${esc(s.additional.languages)}</p>`:''}
@@ -23516,7 +23619,7 @@ var __async = (__this, __arguments, generator) => {
                 { key: 'sidebar-photo', ats: false, swatch: 'sidebar-right', render: (s, accent, v) => {
                     const p = s.profile, ratio = v === 'B' ? 34 : 32;
                     const sec = buildSections(s, accent, 'default');
-                    return `<div style="display:grid;grid-template-columns:${100-ratio}% ${ratio}%;gap:0"><div style="padding-right:12px">${s.summary?`<p>${esc(s.summary)}</p>`:''}${expBlock(s.experience,accent)}${sec.proj}${sec.cert}</div><div style="background:${accent};color:#fff;padding:14px 12px;margin:-18px -16px -18px 0;text-align:center">
+                    return `<div style="display:grid;grid-template-columns:${100-ratio}% ${ratio}%;gap:0"><div style="padding-right:12px">${s.summary?`<p>${esc(s.summary)}</p>`:''}${expBlock(s.experience,accent)}${sec.proj}${sec.cert}</div><div style="background:${accent};color:${contrastOn(accent)};padding:14px 12px;margin:-18px -16px -18px 0;text-align:center">
                         <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin:0 auto 8px">${initials(p.name)}</div>
                         <h2 style="color:#fff;font-size:14px">${esc(p.name)}</h2>
                         <div style="font-size:8px;color:rgba(255,255,255,.8);margin-bottom:8px">${esc(p.role)}</div>
@@ -24999,7 +25102,7 @@ var __async = (__this, __arguments, generator) => {
             <div class="card-glass"><h4 style="font-size:13px;font-weight:600;margin:0 0 2px">Text color / Auto Accent</h4><div class="color-row-sm">${['#181A1F','#1E3A5F','#3F6B4F','#6B3F3F','#5B4B7A','#2A5298','#008080','#8B0000','#D4AF37','#2E8B57'].map(c=>`<button class="color-swatch-sm ${state.textColor===c?'active':''}" style="background:${c}" onclick="window.setResumeTextColor('${c}')"></button>`).join('')}</div></div>
             <div class="card-glass"><strong>Watermark</strong><span class="switch ${state.watermark?'on':''}" style="float:right" onclick="window.state.watermark=!window.state.watermark;window.save();window.renderSettings();window.renderPreviewIfNeeded()"><i></i></span><small>${state.watermark?'Enabled':'Disabled'}.</small></div>
             <div class="card-glass"><strong>Local autosave</strong><small>Enabled.</small></div>
-            <div class="card-glass"><strong>App updates <span class="switch ${(function(){try{return localStorage.getItem('resumate.ota.enabled.v1')!=='0'}catch(e){return true}})()?'on':''}" id="otaSettingsToggle" style="float:right" onclick="window.ResuMateOTA&&window.ResuMateOTA.toggleEnabled()"><i></i></span></strong><small id="otaSettingsStatus">${(()=>{try{const st=window.ResuMateOTA?window.ResuMateOTA.getState():null;if(!st)return'Always on';if(!st.enabled)return'Disabled';const labels={idle:'Always on',checking:'Checking…',up_to_date:'Up to date',update_ready:'Update ready',failed:'Check failed',offline:'Offline'};return labels[st.uiState]||'Always on';}catch(e){return'Always on';}})()}</small><br><small style="color:var(--soft)">Build ${window.__RESUMATE_BUILD__||0} · new versions download in the background and apply automatically next time you open the app — no reinstall needed.</small><br><button class="btn-outline" style="margin-top:6px" onclick="window.ResuMateOTA&&window.ResuMateOTA.checkNow();window.renderSettings()">Check for update now</button></div>
+            <div class="card-glass"><strong>App updates <span class="switch ${(function(){try{return localStorage.getItem('resumate.ota.enabled.v1')!=='0'}catch(e){return true}})()?'on':''}" id="otaSettingsToggle" style="float:right" onclick="window.ResuMateOTA&&window.ResuMateOTA.toggleEnabled()"><i></i></span></strong><small id="otaSettingsStatus">${(()=>{try{const st=window.ResuMateOTA?window.ResuMateOTA.getState():null;if(!st)return'Always on';if(!st.enabled)return'Disabled';const labels={idle:'Always on',checking:'Checking…',up_to_date:'Up to date',update_ready:'Update ready',failed:'Check failed',offline:'Offline'};return labels[st.uiState]||'Always on';}catch(e){return'Always on';}})()}</small><br><small style="color:var(--soft)">Build ${window.__RESUMATE_BUILD__||0} · new versions download in the background and apply automatically next time you open the app — no reinstall needed.</small><br><button class="btn-outline" style="margin-top:6px" onclick="window.ResuMateOTA&&window.ResuMateOTA.checkNow();window.renderSettings()">Check for update now</button> <button class="btn-outline" style="margin-top:6px" onclick="window.requestOtaNotificationPermission&&window.requestOtaNotificationPermission()">${(()=>{try{return typeof Notification!=='undefined'&&Notification.permission==='granted'?'Notifications on':'Enable update notifications';}catch(e){return'Enable update notifications';}})()}</button></div>
             <div class="card-glass"><strong>AI mode</strong><small>Choose how AI features run. Local always works, with no key and no network.</small><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">${[['local','Local / Free'],['auto','Automatic'],['key','My API key'],['claude','Claude (optional)']].map(([v,l])=>`<button class="font-opt ${(state.aiMode||'auto')===v?'active':''}" onclick="window.setAIMode('${v}')">${l}</button>`).join('')}</div></div>
             <div class="card-glass"><strong>AI connection</strong><small id="claudeStatus">${(()=>{const s=window.aiStatus?window.aiStatus():null;return s?('Mode: '+s.mode+' · Local: '+s.local+' · Free key: '+s.free+' · Claude: '+s.claude):(state.aiKey?'Key saved · '+state.aiProvider+' · '+state.aiModel:'Not connected');})()}</small><br><button class="btn-outline" style="margin-top:5px" onclick="window.testClaude()">Test</button></div>
             <div class="card-glass" id="aiKeyCard"><strong>Free AI provider</strong><small>Bring your own API key.</small><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><button class="font-opt ${!isOR?'active':''}" onclick="window.setAIProvider('groq')">Groq</button><button class="font-opt ${isOR?'active':''}" onclick="window.setAIProvider('openrouter')">OpenRouter</button></div><div class="field" style="margin-top:6px"><label>API key</label><input type="password" placeholder="Paste your key" value="${esc(state.aiKey||'')}" oninput="window.setAIKey(this.value)"></div><div class="field"><label>Model</label><input list="aiModelList" value="${esc(state.aiModel||'')}" oninput="window.setAIModel(this.value)"><datalist id="aiModelList">${suggestions.map(m=>`<option value="${m}">`).join('')}</datalist></div><small>Free key: <a href="${isOR?'https://openrouter.ai/keys':'https://console.groq.com/keys'}" target="_blank" rel="noopener">${isOR?'openrouter.ai/keys':'console.groq.com/keys'}</a></small></div>
@@ -25184,6 +25287,7 @@ var __async = (__this, __arguments, generator) => {
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: false },
                         pagebreak: { mode: ['css', 'legacy'] }
                     };
+                    toast('Rendering layout…');
                     const pdfBlob = await html2pdf().set(opt).from(temp).outputPdf('blob');
                     if (isNativeApp()) {
                         await saveBlobToNative(pdfBlob, filename, 'application/pdf');
@@ -25197,11 +25301,11 @@ var __async = (__this, __arguments, generator) => {
                         link.click();
                         link.remove();
                         setTimeout(() => URL.revokeObjectURL(url), 2000);
-                        toast('PDF downloaded');
+                        toast('PDF downloaded', 'success');
                     }
                     exportFeedback(true, 'PDF exported', filename + ' is ready.');
                 } catch (err) {
-                    toast('PDF export error: ' + err.message);
+                    toast('PDF export error: ' + err.message, 'error');
                     exportFeedback(false, 'PDF export failed', err.message || 'Something went wrong exporting your resume.');
                     console.error(err);
                 } finally {
@@ -25224,7 +25328,7 @@ var __async = (__this, __arguments, generator) => {
                     } catch (e) { /* handled by the check below */ }
                 }
                 if (typeof docx === 'undefined') {
-                    toast('DOCX library not loaded — check your connection and try again.');
+                    toast('DOCX library not loaded — check your connection and try again.', 'error');
                     console.error('DOCX export aborted: window.docx is still undefined after loader attempt.');
                     return;
                 }
@@ -25406,11 +25510,11 @@ var __async = (__this, __arguments, generator) => {
                         link.click();
                         link.remove();
                         setTimeout(() => URL.revokeObjectURL(url), 2000);
-                        toast('DOCX downloaded');
+                        toast('DOCX downloaded', 'success');
                     }
                     exportFeedback(true, 'DOCX exported', filename + ' is ready.');
                 } catch (e) {
-                    toast('DOCX export error: ' + e.message);
+                    toast('DOCX export error: ' + e.message, 'error');
                     exportFeedback(false, 'DOCX export failed', e.message || 'Something went wrong exporting your resume.');
                     console.error(e);
                 } finally {
